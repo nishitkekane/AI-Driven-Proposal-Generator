@@ -1,9 +1,9 @@
 server.port=${PORT:8080}
 
-# Database configuration
-spring.datasource.url=${SPRING_DATASOURCE_URL:jdbc:postgresql://ep-wispy-heart-aygyyy0a-pooler.c-5.us-east-2.aws.neon.tech/neondb?sslmode=require}
-spring.datasource.username=${SPRING_DATASOURCE_USERNAME:neondb_owner}
-spring.datasource.password=${SPRING_DATASOURCE_PASSWORD:npg_YzeP01pmBNrc}
+# Database configuration (Neon DB or local PostgreSQL)
+spring.datasource.url=${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/proposals_db}
+spring.datasource.username=${SPRING_DATASOURCE_USERNAME:postgres}
+spring.datasource.password=${SPRING_DATASOURCE_PASSWORD:your_password_here}
 spring.datasource.driver-class-name=org.postgresql.Driver
 
 spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
@@ -19,5 +19,5 @@ fastapi.reflect-review-url=${FASTAPI_REFLECT_REVIEW_URL:http://127.0.0.1:8000/re
 fastapi.execute-revise-url=${FASTAPI_EXECUTE_REVISE_URL:http://127.0.0.1:8000/execute/revise}
 workflow.reflector.max-retries=3
 
-# JWT Signing Secret Key
-jwt.secret=${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+# 256-bit HMAC-SHA Secret for JWT Signing
+jwt.secret=${JWT_SECRET:CHANGE_ME_TO_A_SECURE_256_BIT_SECRET_KEY}

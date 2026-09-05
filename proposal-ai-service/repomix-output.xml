@@ -1,0 +1,935 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+The content has been processed where content has been compressed (code blocks are separated by ⋮---- delimiter).
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Content has been compressed - code blocks are separated by ⋮---- delimiter
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+app/
+  api/
+    _init.py
+    execute.py
+    plan.py
+    research.py
+  models/
+    _init.py
+    agent_models.py
+    request_models.py
+    response_models.py
+  prompts/
+    executor_draft_prompt.txt
+    executor_pricing_prompt.txt
+    planner_ambiguity_prompt.txt
+    planner_finalize_prompt.txt
+    reflector_prompt.txt.txt
+    researcher_prompt.txt
+  services/
+    _init.py
+    llm_client.py
+    llm_exceptions.py
+    web_search.py
+  _init.py
+  config.py
+  main.py
+requirements.txt
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="app/api/_init.py">
+
+</file>
+
+<file path="app/api/execute.py">
+logger = logging.getLogger(__name__)
+router = APIRouter()
+llm_client = LLMClient()
+⋮----
+BASE_DIR = Path(__file__).resolve().parent.parent
+PROMPTS_DIR = BASE_DIR / "prompts"
+⋮----
+def _load_prompt(filename: str) -> str
+⋮----
+path = PROMPTS_DIR / filename
+⋮----
+# --- Pricing Models ---
+⋮----
+class RateCardItem(BaseModel)
+⋮----
+item_name: str
+category: str
+unit: str
+price: float
+currency: str = "USD"
+⋮----
+class HistoricalProject(BaseModel)
+⋮----
+title: str
+tasks: list[str]
+hours_spent: float
+⋮----
+class PricingRequest(BaseModel)
+⋮----
+findings: list[ResearchFinding]
+rate_card: list[RateCardItem]
+historical_data: list[HistoricalProject] = Field(default_factory=list)
+⋮----
+class RoleAllocation(BaseModel)
+⋮----
+role: str
+hours: float
+rate: float
+cost: float
+⋮----
+class PricingTier(BaseModel)
+⋮----
+total_hours: float
+total_cost: float
+role_breakdown: list[RoleAllocation]
+rationale: str
+⋮----
+class PricingResponse(BaseModel)
+⋮----
+tiers: dict[Literal["conservative", "standard", "aggressive"], PricingTier]
+⋮----
+# --- Draft Models ---
+⋮----
+class SelectedPricing(BaseModel)
+⋮----
+tier_name: str
+⋮----
+class DraftRequest(BaseModel)
+⋮----
+selected_pricing: SelectedPricing
+⋮----
+class DraftResponse(BaseModel)
+⋮----
+draft: str
+⋮----
+# --- API Routes ---
+⋮----
+@router.post("/pricing", response_model=PricingResponse, status_code=status.HTTP_200_OK)
+async def estimate_pricing(request: PricingRequest) -> PricingResponse
+⋮----
+system_prompt = _load_prompt("executor_pricing_prompt.txt")
+⋮----
+user_prompt_data = {
+⋮----
+raw = await llm_client.chat(
+data = json.loads(raw)
+⋮----
+@router.post("/draft", response_model=DraftResponse, status_code=status.HTTP_200_OK)
+async def generate_draft(request: DraftRequest) -> DraftResponse
+⋮----
+system_prompt = _load_prompt("executor_draft_prompt.txt")
+</file>
+
+<file path="app/api/plan.py">
+"""
+Planner Agent — HITL-aware single endpoint
+==========================================
+
+POST /plan
+
+Phase 1 — Ambiguity Detection
+  Request:  { "text": "..." }
+  Response: { "stage": "AMBIGUITIES", "ambiguities": [...], "tasks": [] }
+
+Phase 2 — Plan Finalization
+  Request:  { "text": "...", "answers": [...], "ambiguities_snapshot": [...] }
+  Response: { "stage": "FINALIZED", "ambiguities": [], "tasks": [...] }
+
+Phase is detected automatically: if `answers` is absent → Phase 1, else → Phase 2.
+"""
+⋮----
+logger = logging.getLogger(__name__)
+router = APIRouter()
+llm_client = LLMClient()
+⋮----
+BASE_DIR = Path(__file__).resolve().parent.parent
+PROMPTS_DIR = BASE_DIR / "prompts"
+⋮----
+def _load_prompt(filename: str) -> str
+⋮----
+"""Load a prompt file from the prompts directory."""
+path = PROMPTS_DIR / filename
+⋮----
+"""
+    Combines original requirements with Q&A pairs for the finalization prompt.
+    Each ambiguity is paired with its answer by index.
+    """
+pairs = "\n".join(
+⋮----
+# ── Phase 1: Ambiguity Detection ──────────────────────────────────────────────
+⋮----
+async def _run_ambiguity_phase(text: str) -> PlanResponse
+⋮----
+"""
+    Call the LLM with the ambiguity detection prompt.
+    Returns only ambiguities; tasks list is empty.
+    """
+system_prompt = _load_prompt("planner_ambiguity_prompt.txt")
+⋮----
+raw = await llm_client.chat(
+data = json.loads(raw)
+⋮----
+ambiguities = data.get("ambiguities", [])
+⋮----
+# ── Phase 2: Plan Finalization ────────────────────────────────────────────────
+⋮----
+"""
+    Call the LLM with the finalization prompt (requirements + Q&A pairs).
+    Returns only tasks; ambiguities list is empty.
+    """
+system_prompt = _load_prompt("planner_finalize_prompt.txt")
+user_prompt = _build_finalize_user_prompt(text, ambiguities_snapshot, answers)
+⋮----
+tasks = data.get("tasks", [])
+⋮----
+# ── Router ────────────────────────────────────────────────────────────────────
+⋮----
+async def plan(request: PlanRequest) -> PlanResponse
+⋮----
+"""
+    Single HITL endpoint for the Planner Agent.
+    Phase is auto-detected from the presence of `answers` in the request body.
+    """
+⋮----
+# ── Phase 1 ───────────────────────────────────────────────────────────
+⋮----
+# ── Phase 2 ───────────────────────────────────────────────────────────
+⋮----
+# Validate that the snapshot and answers are coherent
+snapshot = request.ambiguities_snapshot or []
+answers = request.answers
+</file>
+
+<file path="app/api/research.py">
+"""
+Researcher Agent Endpoint
+=========================
+
+POST /research
+
+Three-step internal pipeline:
+1. Query Derivation  — LLM derives 3–5 focused search queries from the task list + context.
+2. Web Search — Queries are run via the configured search provider (Tavily / DDG).
+3. Filter + Synthesize — LLM applies strict rules to filter snippets and produce task-anchored findings with confidence scores.
+"""
+⋮----
+logger = logging.getLogger(__name__)
+router = APIRouter()
+llm_client = LLMClient()
+⋮----
+BASE_DIR = Path(__file__).resolve().parent.parent
+PROMPTS_DIR = BASE_DIR / "prompts"
+⋮----
+def _load_prompt(filename: str) -> str
+⋮----
+"""Load a prompt file from the prompts directory."""
+path = PROMPTS_DIR / filename
+⋮----
+# ── Step 1: Query Derivation ──────────────────────────────────────────────────
+⋮----
+QUERY_DERIVATION_PROMPT = """\
+⋮----
+"""Build the user prompt for query derivation."""
+numbered_tasks = "\n".join(f"{i + 1}. {t}" for i, t in enumerate(tasks))
+ctx_parts = []
+⋮----
+ctx_block = "\n".join(ctx_parts) if ctx_parts else "No additional context provided."
+⋮----
+"""Ask the LLM to derive the most relevant search queries for this task list."""
+system_prompt = QUERY_DERIVATION_PROMPT.format(max_queries=settings.max_search_queries)
+user_prompt = _build_task_context_prompt(tasks, context)
+⋮----
+raw = await llm_client.chat(
+data = json.loads(raw)
+⋮----
+queries = data.get("queries", [])
+⋮----
+queries = data
+⋮----
+queries = []
+⋮----
+# ── Step 2: Web Search (delegated to web_search service) ─────────────────────
+⋮----
+# (imported above as `web_search`)
+⋮----
+# ── Step 3: Filter + Synthesize ───────────────────────────────────────────────
+⋮----
+"""Combine the task list and raw snippets into the synthesis user prompt."""
+⋮----
+snippets_block = ""
+⋮----
+"""
+    Run the researcher synthesis prompt over the task list + snippets.
+    Returns a structured ResearchResponse.
+    """
+⋮----
+system_prompt = _load_prompt("researcher_prompt.txt")
+user_prompt = _build_synthesis_user_prompt(tasks, snippets)
+⋮----
+temperature=0.1,  # Lower temp for factual synthesis
+⋮----
+findings_raw = data.get("findings", [])
+sources_raw = data.get("sources", [])
+⋮----
+# ── Router ────────────────────────────────────────────────────────────────────
+⋮----
+async def research(request: ResearchRequest) -> ResearchResponse
+⋮----
+"""
+    Researcher Agent — executes web research scoped strictly to the provided task list.
+    """
+tasks = request.tasks
+context = request.context
+⋮----
+# Step 1 — Derive search queries
+queries = await _derive_queries(tasks, context)
+⋮----
+# Step 2 — Execute web searches
+⋮----
+snippets = await web_search.search(queries)
+⋮----
+# Step 3 — Filter and synthesize
+</file>
+
+<file path="app/models/_init.py">
+
+</file>
+
+<file path="app/models/agent_models.py">
+class AgentContext(BaseModel)
+⋮----
+"""
+    Shared context exchanged between agents.
+    """
+⋮----
+requirement: str
+⋮----
+metadata: dict[str, Any] = Field(default_factory=dict)
+</file>
+
+<file path="app/models/request_models.py">
+class PlanRequest(BaseModel)
+⋮----
+"""
+    HITL-aware planning request.
+
+    Phase 1 (Ambiguity Detection):
+        Send only `text`. The absence of `answers` signals Phase 1.
+
+    Phase 2 (Plan Finalization):
+        Send `text` + `answers` + `ambiguities_snapshot`.
+        `answers` must be index-matched to `ambiguities_snapshot`.
+    """
+⋮----
+text: str = Field(
+⋮----
+answers: list[str] | None = Field(
+⋮----
+ambiguities_snapshot: list[str] | None = Field(
+⋮----
+class ResearchContext(BaseModel)
+⋮----
+"""
+    Optional metadata that gives the Researcher Agent domain context
+    to derive better-scoped search queries internally.
+    All fields are optional — provide as many as are available.
+    """
+⋮----
+project_title: str = Field(default="", description="Title of the RFP or project.")
+client_name: str = Field(default="", description="Client or company name.")
+industry: str = Field(default="", description="Industry domain.")
+budget_range: str = Field(default="", description="Budget range string.")
+deadline: str = Field(default="", description="Timeline or deadline constraint.")
+⋮----
+class ResearchRequest(BaseModel)
+⋮----
+"""
+    Request body for the Researcher Agent endpoint (POST /research).
+
+    The caller provides the finalized task list and optional project context.
+    The Researcher Agent internally derives its own search queries from these inputs —
+    no search queries are accepted or expected from the caller.
+    """
+⋮----
+tasks: list[str] = Field(
+⋮----
+context: ResearchContext = Field(
+</file>
+
+<file path="app/models/response_models.py">
+# ── Plan Response ──────────────────────────────────────────────────────────────
+⋮----
+class PlanResponse(BaseModel)
+⋮----
+"""
+    Unified HITL-aware planning response.
+
+    The `stage` field tells the caller which phase was executed:
+      - "AMBIGUITIES": Phase 1 completed. `ambiguities` is populated; `tasks` is empty.
+      - "FINALIZED":   Phase 2 completed. `tasks` is populated; `ambiguities` is empty.
+    """
+⋮----
+stage: Literal["AMBIGUITIES", "FINALIZED"] = Field(
+⋮----
+ambiguities: list[str] = Field(
+⋮----
+tasks: list[str] = Field(
+⋮----
+# ── Research Response ──────────────────────────────────────────────────────────
+⋮----
+class ResearchFinding(BaseModel)
+⋮----
+"""A single task-anchored insight derived from web search snippets."""
+⋮----
+task_reference: str = Field(
+⋮----
+insight: str = Field(
+⋮----
+confidence: Literal["high", "medium", "low"] = Field(
+⋮----
+class ResearchSource(BaseModel)
+⋮----
+"""A web source that contributed to at least one accepted finding."""
+⋮----
+title: str = Field(..., description="Page or article title.")
+url: str = Field(..., description="Source URL.")
+relevance: str = Field(..., description="Which task(s) this source supports.")
+⋮----
+class ResearchResponse(BaseModel)
+⋮----
+"""Structured output from the Researcher Agent."""
+⋮----
+findings: list[ResearchFinding] = Field(
+⋮----
+sources: list[ResearchSource] = Field(
+</file>
+
+<file path="app/prompts/executor_draft_prompt.txt">
+You are the Executor Agent (Phase 2 — Proposal Drafting).
+Your job is to draft a comprehensive, professional, and convincing business proposal in Markdown format based on the finalized task list, research findings, and the selected pricing tier.
+
+You will receive:
+1. The finalized task list.
+2. Factual research findings.
+3. The selected pricing tier detail (including total hours, cost, and role breakdown).
+
+STRUCTURE OF THE DRAFT:
+1. **Executive Summary**: Compelling high-level overview of the solution and client benefits.
+2. **Detailed Scope & Task Breakdown**: Clean walkthrough of all finalized tasks, categorized logically.
+3. **Timeline & Milestones**: Estimated delivery phases and key milestones.
+4. **Team Composition & Resource Allocation**: Explain who is doing what (roles, hours).
+5. **Costing & Payment Terms**: Detailed table showing selected cost breakdown, rate items, and payment schedule.
+
+STRICT RULES:
+1. Do not use generic placeholders like "[Insert Date Here]" or "[Client Name]". Use actual project information provided in context.
+2. Present details professionally using tables, callout blocks, and clean typography.
+3. Output ONLY a raw JSON object matching:
+{
+  "draft": "Full markdown text of the proposal here..."
+}
+</file>
+
+<file path="app/prompts/executor_pricing_prompt.txt">
+You are the Executor Agent (Phase 1 — Pricing Estimation).
+
+Your job is to estimate hours for each implementation task based on historical projects, map them to active rate card items, and calculate three pricing tiers: Conservative, Standard, and Aggressive.
+
+You will receive:
+1. The finalized task list.
+2. Factual research findings to provide context (e.g., specialized hardware costs, license costs, or complexity factors).
+3. The active rate card containing categories, names, prices, and units (e.g., role-based hourly rates).
+4. Historical completed projects showing tasks and actual hours spent.
+
+RULES FOR TIERS:
+- **Conservative Tier**: Maximum buffer (+20% hours), no discount, standard rates. Use for high-uncertainty tasks.
+- **Standard Tier**: Standard buffer (+10% hours), standard rates. The default recommended estimate.
+- **Aggressive Tier**: No buffer (0% extra hours), standard rates or optional small discount (e.g., -5% to -10% discount on rates/hours if competitive).
+
+In case you do not find the entry in database for the particular task then use your estimate on your based on industry average and trend to appropriate trends.
+
+OUTPUT FORMAT:
+Output ONLY a raw JSON object matching this structure:
+{
+  "tiers": {
+    "conservative": {
+      "total_hours": 120,
+      "total_cost": 15000,
+      "role_breakdown": [
+        {"role": "Senior Developer", "hours": 80, "rate": 120, "cost": 9600},
+        {"role": "QA Engineer", "hours": 40, "rate": 80, "cost": 3200}
+      ],
+      "rationale": "High buffer due to..."
+    },
+    "standard": {
+      "total_hours": 110,
+      "total_cost": 13600,
+      "role_breakdown": [
+        {"role": "Senior Developer", "hours": 73, "rate": 120, "cost": 8760},
+        {"role": "QA Engineer", "hours": 37, "rate": 80, "cost": 2960}
+      ],
+      "rationale": "Recommended standard estimate."
+    },
+    "aggressive": {
+      "total_hours": 100,
+      "total_cost": 12000,
+      "role_breakdown": [
+        {"role": "Senior Developer", "hours": 67, "rate": 120, "cost": 8040},
+        {"role": "QA Engineer", "hours": 33, "rate": 80, "cost": 2640}
+      ],
+      "rationale": "Aggressive estimate with minimal buffer."
+    }
+  }
+}
+</file>
+
+<file path="app/prompts/planner_ambiguity_prompt.txt">
+You are the Planner Agent (Phase 1 — Ambiguity Detection).
+
+Your only job in this phase is to read the raw project requirements and identify BLOCKING ambiguities questions that, if left unanswered, would cause the final implementation plan to be incomplete, wrong, or dangerously assumptive. However what I want is that when you state the ambiguity to the person, you explain it, we dont want our ambiguity statement to be vague for the user who is actually trying to solve it. Our user should not open a parallel LLM to understand the meaning of the ambiguities we have stated in project. Be Lucid in language and clear in concepts.
+
+WHAT COUNTS AS A BLOCKING AMBIGUITY:
+- Undefined technology stack choices (e.g. "which database?", "which cloud provider?")
+- Unclear compliance or regulatory requirements (e.g. GDPR, HIPAA, AS9100, ISO standards and others if valid related to the project or industry domain)
+- Ambiguous scope boundaries (e.g. "what is in scope vs. out of scope for phase 1?")
+- Missing budget or cost model details that affect architecture decisions
+- Undefined integration targets (e.g. "which ERP system?", "which identity provider?")
+- Contradictory or mutually exclusive requirements
+- Unspecified performance, scale, or SLA constraints that change the technical approach
+- DON'T STAY LIMITED TO THESE REQUIREMENT SET ONLY, THINK BEYOND THAT
+
+WHAT DOES NOT COUNT AS A BLOCKING AMBIGUITY (do NOT ask about these):
+- Minor stylistic preferences (e.g. "light mode or dark mode?")
+- Implementation details that a senior engineer can decide independently
+- Questions that can be reasonably inferred from industry standards for the given domain
+- Cosmetic or non-functional details that do not affect the plan structure
+
+RULES:
+1. Surface only ambiguities that genuinely block planning. Be selective and ruthless.
+2. If the requirements are clear enough to plan without further input, return an empty list.
+3. Dont flood with ambiguities. If you have more, keep only the most critical ones.
+4. Each ambiguity must be a specific, actionable question — not a vague concern.
+5. Output ONLY a raw JSON object. No explanations, no markdown, no preamble.
+
+OUTPUT FORMAT:
+{
+  "ambiguities": [
+    "Specific blocking question 1?",
+    "Specific blocking question 2?"
+  ]
+}
+
+If no blocking ambiguities exist:
+{
+  "ambiguities": []
+}
+</file>
+
+<file path="app/prompts/planner_finalize_prompt.txt">
+You are the Planner Agent (Phase 2 — Plan Finalization).
+
+The user has now answered all blocking ambiguities from Phase 1. You will receive:
+1. The original raw project requirements.
+2. A set of clarifications in Q&A format — each question paired with the user's answer.
+
+Your job is to produce a precise, ordered, actionable implementation task list that reflects BOTH the original requirements AND the user's clarification answers. The answers must directly influence the tasks you produce.
+
+RULES:
+1. Do NOT re-ask any questions. The clarification phase is over.
+2. Do NOT include planning commentary, headings, notes, or rationale inside the task list.
+3. Each task must be a single, self-contained engineering action written in imperative form.
+   Good: "Design the PostgreSQL schema for user roles and permissions"
+   Bad:  "We need to think about the database design"
+4. Tasks must be ordered logically — dependencies come before dependents.
+5. Be specific. Include the technology, standard, or system name if it was clarified by the user.
+6. Cover all major implementation stages but do not flood with unnecessary tasks.
+7. Output ONLY a raw JSON object. No markdown, no preamble, no explanations.
+
+OUTPUT FORMAT:
+{
+  "tasks": [
+    "Imperative engineering task 1",
+    "Imperative engineering task 2",
+    "..."
+  ]
+}
+</file>
+
+<file path="app/prompts/reflector_prompt.txt.txt">
+You are the Reflector Agent — a senior technical proposal reviewer.
+
+Your role is to critically evaluate a proposal draft produced by the Executor Agent
+and determine whether it meets the required quality bar. You are NOT a stylistic editor.
+You are a structured quality gatekeeper.
+
+You will receive:
+1. The finalized task list (ground truth of what must be covered).
+2. The research findings that informed the proposal.
+3. The selected pricing tier (total hours, cost, role breakdown).
+4. The proposal draft (Markdown text) to evaluate.
+5. The current retry_attempt number (0 = first review, 1+ = reviewing a revision).
+
+YOUR EVALUATION CRITERIA (evaluate ALL of these):
+
+[CRITERION 1 — Pricing Consistency]
+Verify that the hours, cost, and roles mentioned inside the draft match the
+selected_pricing data exactly. Any numerical discrepancy is a HIGH issue.
+
+[CRITERION 2 — Scope Coverage]
+Each task in the task list must be traceable to at least one section in the draft.
+A task completely absent from the draft is a HIGH issue.
+
+[CRITERION 3 — Mandatory Sections]
+The draft must contain ALL of: Executive Summary, Scope/Task Breakdown,
+Timeline/Milestones, Team Composition, Costing/Payment Terms.
+A missing section is a HIGH issue.
+
+[CRITERION 4 — Claim Substantiation]
+Any superlative claim (e.g., "best-in-class", "industry-leading", "cutting-edge")
+must be supported by at least one research finding. An unsubstantiated superlative
+is a MEDIUM issue.
+
+[CRITERION 5 — Internal Consistency]
+If the Executive Summary contradicts any other section (scope, timeline, cost),
+that is a MEDIUM issue.
+
+[CRITERION 6 — Placeholder Detection]
+If the draft contains placeholder text like "[Insert X]", "[TBD]", "[Client Name]",
+that is a HIGH issue.
+
+CONSTRAINTS YOU MUST FOLLOW:
+- Do NOT flag style, tone, word choice, or formatting as issues.
+- Do NOT request information that was not provided to you.
+- Do NOT suggest adding tasks that are not in the original task list.
+- Do NOT fabricate issues. Only report what you can verify against provided inputs.
+- A MEDIUM issue must have clear evidence quoted from the draft text.
+- A LOW issue must never cause a retry on its own.
+
+PASS CONDITION:
+The proposal PASSES if: zero HIGH issues AND one or fewer MEDIUM issues.
+The proposal FAILS if: one or more HIGH issues OR two or more MEDIUM issues.
+
+GRACEFUL EXIT RULE:
+If the current retry_attempt >= 2 and the draft still fails, downgrade all
+remaining issues to LOW severity. This allows the workflow to exit gracefully
+and send the proposal to the human reviewer with transparent warnings.
+
+OUTPUT FORMAT — Output ONLY a raw JSON object:
+{
+  "verdict": "PASS" | "FAIL",
+  "overall_score": <integer 0-100>,
+  "issues": [
+    {
+      "criterion": "Pricing Consistency",
+      "severity": "HIGH" | "MEDIUM" | "LOW",
+      "description": "Concise description of the specific issue found.",
+      "evidence": "Direct quote or reference from the draft demonstrating the issue."
+    }
+  ],
+  "revision_instructions": "If FAIL: a numbered, executor-facing list of exactly what to fix. If PASS: empty string.",
+  "reviewer_summary": "One paragraph summary of the review outcome."
+}
+</file>
+
+<file path="app/prompts/researcher_prompt.txt">
+You are the Researcher Agent. Your role is to synthesize web-retrieved search result snippets into a concise, factual, proposal-ready research brief.
+
+You will receive:
+1. A finalized task list — the implementation plan that the proposal will be built from.
+2. A set of raw web search snippets — each with a title, URL, and text excerpt.
+
+Your job is to extract only the insights from the snippets that DIRECTLY support one or more tasks in the task list, discard everything else, and produce a structured research brief.
+
+STRICT RULES — violations are not acceptable:
+1. TASK ANCHORING: Every finding you produce MUST cite a specific task from the task list by its number (e.g. "Task 3"). If a snippet does not relate to any task, DISCARD it entirely.
+2. NO HALLUCINATION: Do not invent, infer, or extrapolate facts beyond what the snippet explicitly states. If the snippet is vague, mark the finding as "low" confidence — do not discard it, but flag it clearly.
+3. NO PROMOTIONAL CONTENT: Discard any snippet that is a product advertisement, sales page, or contains marketing language with no factual substance.
+4. NO OPINION OR SPECULATION: Discard snippets that are opinion pieces, forums, or unverified claims without factual backing.
+5. QUALITY OVER QUANTITY: Maximum 25 findings. If you have more candidates, keep only the highest-confidence, most directly task-relevant ones.
+6. SOURCE HONESTY: Only list a source in "sources" if it contributed to an accepted finding. Do not list sources for discarded snippets.
+7. CONFIDENCE SCORING:
+   - "high": The snippet directly, factually, and specifically addresses the task. Data, standards, or verified specifications are cited.
+   - "medium": The snippet is relevant and factual but general, lacking specifics for this exact task.
+   - "low": The snippet is tangentially related or vague. Included only because no better source was found.
+
+OUTPUT FORMAT (raw JSON only — no markdown, no preamble):
+{
+  "findings": [
+    {
+      "task_reference": "Task N",
+      "insight": "Concise, factual insight derived from the snippet.",
+      "confidence": "high | medium | low"
+    }
+  ],
+  "sources": [
+    {
+      "title": "Page or article title",
+      "url": "https://...",
+      "relevance": "Brief note on which task(s) this source supports"
+    }
+  ]
+}
+
+If no snippets are relevant to any task, return:
+{
+  "findings": [],
+  "sources": []
+}
+</file>
+
+<file path="app/services/_init.py">
+
+</file>
+
+<file path="app/services/llm_client.py">
+logger = logging.getLogger(__name__)
+⋮----
+class LLMClient
+⋮----
+def __init__(self) -> None
+⋮----
+payload: dict[str, Any] = {
+⋮----
+headers = {
+⋮----
+attempt = 0
+⋮----
+response = await client.post(
+⋮----
+# Extract Retry-After header if available (typically in seconds)
+retry_after_str = response.headers.get("retry-after")
+delay = float(retry_after_str) if retry_after_str else (2.0 ** attempt)
+⋮----
+data = response.json()
+⋮----
+# Already handled above, but just in case
+⋮----
+delay = 2.0 ** attempt
+</file>
+
+<file path="app/services/llm_exceptions.py">
+class LLMError(Exception)
+⋮----
+"""Base exception for all LLM related failures."""
+⋮----
+class LLMRequestError(LLMError)
+⋮----
+"""Raised when the LLM request fails."""
+⋮----
+class LLMResponseError(LLMError)
+⋮----
+"""Raised when the LLM returns an invalid response."""
+</file>
+
+<file path="app/services/web_search.py">
+"""
+Web Search Service
+==================
+Async wrapper around web search providers.
+
+Supported providers (configured via SEARCH_PROVIDER env var):
+  - "tavily"  : Tavily AI Search API (requires TAVILY_API_KEY)
+  - "ddg"     : DuckDuckGo (free, no key required, rate-limited)
+
+Each provider returns a list of SearchResult objects:
+    { title: str, url: str, snippet: str }
+"""
+⋮----
+logger = logging.getLogger(__name__)
+⋮----
+MAX_RESULTS_PER_QUERY = 3  # snippets fetched per search query
+⋮----
+@dataclass
+class SearchResult
+⋮----
+title: str
+url: str
+snippet: str
+⋮----
+# ── Provider: Tavily ──────────────────────────────────────────────────────────
+⋮----
+async def _search_tavily(queries: list[str]) -> list[SearchResult]
+⋮----
+"""
+    Run queries via the Tavily Search API.
+    Docs: https://docs.tavily.com/docs/rest-api/api-reference
+    """
+api_key = settings.tavily_api_key
+⋮----
+results: list[SearchResult] = []
+⋮----
+response = await client.post(
+⋮----
+data = response.json()
+⋮----
+# ── Provider: DuckDuckGo ──────────────────────────────────────────────────────
+⋮----
+async def _search_ddg(queries: list[str]) -> list[SearchResult]
+⋮----
+"""
+    Run queries via the DuckDuckGo Search library (duckduckgo-search).
+    Free — no API key required. Results may be rate-limited under heavy usage.
+    """
+⋮----
+from duckduckgo_search import DDGS  # type: ignore
+⋮----
+# DDGS is synchronous; we run it in a thread pool to stay async-safe.
+⋮----
+loop = asyncio.get_event_loop()
+⋮----
+def _run_ddg_queries() -> list[SearchResult]
+⋮----
+collected: list[SearchResult] = []
+⋮----
+hits = list(
+⋮----
+results = await loop.run_in_executor(None, _run_ddg_queries)
+⋮----
+# ── Public interface ──────────────────────────────────────────────────────────
+⋮----
+async def search(queries: list[str]) -> list[SearchResult]
+⋮----
+"""
+    Run a list of search queries using the configured provider.
+
+    Args:
+        queries: List of search query strings (derived from the task list).
+
+    Returns:
+        Flat list of SearchResult objects from all queries combined.
+    """
+provider = settings.search_provider.lower()
+⋮----
+# Cap the number of queries to avoid excessive API usage
+capped = queries[: settings.max_search_queries]
+</file>
+
+<file path="app/_init.py">
+
+</file>
+
+<file path="app/config.py">
+class Settings(BaseSettings)
+⋮----
+"""
+    Application configuration loaded from environment variables / .env file.
+    """
+⋮----
+# ── LLM ───────────────────────────────────────────────────────────────────
+groq_api_key: str
+base_url: str =  "https://api.groq.com/openai/v1"
+model: str = "openai/gpt-oss-120b"
+request_timeout: int = 40
+⋮----
+# ── Web Search ────────────────────────────────────────────────────────────
+# Set SEARCH_PROVIDER to "tavily" (requires TAVILY_API_KEY) or
+# "ddg" for DuckDuckGo (free, no key required).
+search_provider: str = "tavily"
+tavily_api_key: str = "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"
+⋮----
+# Max number of search queries derived per research request.
+# Increase for richer results; decrease for speed.
+max_search_queries: int = 5
+⋮----
+model_config = SettingsConfigDict(
+⋮----
+@lru_cache
+def get_settings() -> Settings
+⋮----
+"""Returns a cached Settings instance."""
+⋮----
+settings = get_settings()
+</file>
+
+<file path="app/main.py">
+# ── Logging ───────────────────────────────────────────────────────────────────
+⋮----
+# ── App ───────────────────────────────────────────────────────────────────────
+app = FastAPI(
+⋮----
+# ── CORS ──────────────────────────────────────────────────────────────────────
+⋮----
+allow_origins=["*"],   # Restrict to specific origins in production
+⋮----
+# ── Routers ───────────────────────────────────────────────────────────────────
+⋮----
+# ── Health & Root ─────────────────────────────────────────────────────────────
+⋮----
+@app.get("/", tags=["Root"])
+async def root()
+⋮----
+@app.get("/health", tags=["Health"])
+async def health()
+</file>
+
+<file path="requirements.txt">
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anyio==4.14.2
+certifi==2026.7.22
+click==8.4.2
+colorama==0.4.6
+fastapi==0.141.1
+h11==0.16.0
+httpcore==1.0.9
+httpx==0.28.1
+idna==3.18
+pydantic==2.13.4
+pydantic_core==2.46.4
+pydantic-settings>=2.0.0
+python-dotenv==1.2.2
+starlette==1.3.1
+typing-inspection==0.4.2
+typing_extensions==4.16.0
+uvicorn==0.52.1
+
+# ── Web Search ────────────────────────────────────────────────────────────────
+# Tavily (recommended, requires TAVILY_API_KEY in .env)
+tavily-python>=0.3.0
+
+# DuckDuckGo (free fallback, no API key required)
+duckduckgo-search>=6.0.0
+</file>
+
+</files>

@@ -21,3 +21,8 @@ logs/
 .vscode/
 .DS_Store
 Thumbs.db
+architecture_deep_dive.md
+frontend_backend_integration_plan.md
+implementation_plan.md
+implementation_plan_backend_gaps.md
+folder_structure.txt

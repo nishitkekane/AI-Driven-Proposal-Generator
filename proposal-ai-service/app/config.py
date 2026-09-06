@@ -9,10 +9,10 @@ class Settings(BaseSettings):
     """
 
     # ── LLM ───────────────────────────────────────────────────────────────────
-    groq_api_key: str
-    base_url: str =  "https://api.groq.com/openai/v1"
-    model: str = "openai/gpt-oss-120b"
-    request_timeout: int = 40
+    groq_api_key: str = ""
+    base_url: str = "https://api.groq.com/openai/v1"
+    model: str = "llama-3.3-70b-versatile"
+    request_timeout: int = 60
 
     # ── Web Search ────────────────────────────────────────────────────────────
     # Set SEARCH_PROVIDER to "tavily" (requires TAVILY_API_KEY) or

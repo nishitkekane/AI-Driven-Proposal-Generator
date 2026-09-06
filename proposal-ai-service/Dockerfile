@@ -1,4 +1,4 @@
-FROM python:3.13
+FROM python:3.11-slim
 
 WORKDIR /app
 
@@ -13,4 +13,4 @@ COPY . .
 EXPOSE 8000
 
 # Run uvicorn — Render injects $PORT automatically
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --timeout-keep-alive 75"]

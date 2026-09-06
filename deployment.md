@@ -69,7 +69,7 @@ COPY . .
 EXPOSE 8000
 
 # Run uvicorn — Render injects $PORT automatically
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --timeout-keep-alive 75"]
 ```
 
 ### Step 1.2 — Create the Service on Render
@@ -94,8 +94,8 @@ In the Render service settings, go to **Environment** and add:
 |-----|-------|-------|
 | `GROQ_API_KEY` | `gsk_4o7CTMHr3Ob...` | Your Groq API key |
 | `BASE_URL` | `https://api.groq.com/openai/v1` | Groq endpoint |
-| `MODEL` | `openai/gpt-oss-120b` | LLM model name |
-| `REQUEST_TIMEOUT` | `40` | Timeout in seconds |
+| `MODEL` | `llama-3.3-70b-versatile` | LLM model name |
+| `REQUEST_TIMEOUT` | `120` | Timeout in seconds |
 | `SEARCH_PROVIDER` | `tavily` | Or `ddg` for free fallback |
 | `TAVILY_API_KEY` | `tvly-dev-...` | Only if using Tavily |
 

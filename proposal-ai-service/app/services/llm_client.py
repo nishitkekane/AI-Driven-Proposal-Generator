@@ -7,8 +7,9 @@ from app.services.llm_exceptions import LLMRequestError, LLMResponseError
 
 logger = logging.getLogger(__name__)
 
-FALLBACK_MODEL = "llama-3.3-70b-versatile"
-_JSON_MODE_MODELS = {"llama-3.3-70b-versatile", "gemini-2.5-flash", "meta-llama/llama-4-scout-17b-16e-instruct"}
+FALLBACK_MODEL = "openai/gpt-oss-20b"
+# _JSON_MODE_MODELS = {"llama-3.3-70b-versatile", "gemini-2.5-flash", "meta-llama/llama-4-scout-17b-16e-instruct", "openai/gpt-oss-20b"}
+_JSON_MODE_MODELS = {"openai/gpt-oss-20b"}
 
 class LLMClient:
     def __init__(self) -> None:

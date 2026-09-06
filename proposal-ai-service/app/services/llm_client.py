@@ -7,12 +7,28 @@ from app.services.llm_exceptions import LLMRequestError, LLMResponseError
 
 logger = logging.getLogger(__name__)
 
+FALLBACK_MODEL = "llama-3.3-70b-versatile"
+_JSON_MODE_MODELS = {"llama-3.3-70b-versatile", "gemini-2.5-flash", "meta-llama/llama-4-scout-17b-16e-instruct"}
+
 class LLMClient:
     def __init__(self) -> None:
-        self.base_url = settings.base_url.rstrip("/")
-        self.model = settings.model
-        self.timeout = settings.request_timeout
-        self.api_key = settings.groq_api_key
+        pass
+
+    @property
+    def api_key(self) -> str:
+        return settings.groq_api_key
+
+    @property
+    def base_url(self) -> str:
+        return settings.base_url.rstrip("/")
+
+    @property
+    def model(self) -> str:
+        return settings.model
+
+    @property
+    def timeout(self) -> int:
+        return settings.request_timeout
 
     async def chat(
         self,
@@ -21,14 +37,18 @@ class LLMClient:
         temperature: float = 0.2,
         max_retries: int = 4,
     ) -> str:
-        if not self.api_key:
+        api_key = self.api_key
+        if not api_key:
             raise LLMRequestError("No Groq API key configured in settings.")
 
-        # Models that are known to support structured JSON mode on Groq
-        _JSON_MODE_MODELS = {"llama-3.3-70b-versatile", "gemini-2.5-flash", "meta-llama/llama-4-scout-17b-16e-instruct"}
+        current_model = self.model
+        # Sanitize known non-Groq model names
+        if not current_model or current_model.startswith("openai/") or current_model == "openai/gpt-oss-120b":
+            logger.info("Overriding model '%s' with default Groq model '%s'", current_model, FALLBACK_MODEL)
+            current_model = FALLBACK_MODEL
 
         payload: dict[str, Any] = {
-            "model": self.model,
+            "model": current_model,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
@@ -36,19 +56,19 @@ class LLMClient:
             "temperature": temperature,
         }
 
-        # Only add response_format for models that support it;
-        # openai/gpt-oss-120b on Groq does NOT support json_object mode.
-        if self.model in _JSON_MODE_MODELS:
+        if current_model in _JSON_MODE_MODELS:
             payload["response_format"] = {"type": "json_object"}
 
         headers = {
-            "Authorization": f"Bearer {self.api_key}",
+            "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
             "HTTP-Referer": "https://github.com/nishitkekane/Smart-Proposal-Generator",
             "X-Title": "Smart Proposal Generator",
         }
 
         attempt = 0
+        fallback_attempted = False
+
         while attempt < max_retries:
             try:
                 async with httpx.AsyncClient(timeout=self.timeout) as client:
@@ -60,10 +80,8 @@ class LLMClient:
 
                     if response.status_code == 429:
                         attempt += 1
-                        # Extract Retry-After header if available (typically in seconds)
                         retry_after_str = response.headers.get("retry-after")
                         delay = float(retry_after_str) if retry_after_str else (2.0 ** attempt)
-
                         logger.warning(
                             "Rate limit (429) hit. Attempt %d/%d. Waiting %.2fs...",
                             attempt, max_retries, delay
@@ -77,9 +95,22 @@ class LLMClient:
 
             except httpx.HTTPStatusError as ex:
                 if ex.response.status_code == 429:
-                    # Already handled above, but just in case
                     continue
-                logger.error("HTTP error: %s", ex)
+                # If Groq returns 404 (Model Not Found) and we haven't tried the fallback yet:
+                if ex.response.status_code == 404 and not fallback_attempted and payload["model"] != FALLBACK_MODEL:
+                    logger.warning(
+                        "Groq returned 404 for model '%s'. Retrying with fallback model '%s'...",
+                        payload["model"], FALLBACK_MODEL
+                    )
+                    payload["model"] = FALLBACK_MODEL
+                    if FALLBACK_MODEL in _JSON_MODE_MODELS:
+                        payload["response_format"] = {"type": "json_object"}
+                    fallback_attempted = True
+                    attempt += 1
+                    await asyncio.sleep(1.0)
+                    continue
+
+                logger.error("HTTP error from LLM provider: %s — Response: %s", ex, ex.response.text if ex.response else "No body")
                 raise LLMRequestError(f"HTTP error: {ex}") from ex
             except httpx.HTTPError as ex:
                 attempt += 1

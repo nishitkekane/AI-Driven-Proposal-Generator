@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Proposal Generator</title>
+    <script>
+      // SPA fallback: redirect to root with the original path stored in sessionStorage
+      // so the React Router can handle it client-side.
+      var path = window.location.pathname + window.location.search;
+      sessionStorage.setItem('redirectPath', path);
+      window.location.replace('/');
+    </script>
+  </head>
+  <body></body>
+</html>

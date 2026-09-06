@@ -39,8 +39,8 @@ public class SecurityConfig {
     }
 
     /**
-     * Global CORS policy — allows the React dev server (any localhost port)
-     * to call Spring Boot.  Restrict origins in production.
+     * Global CORS policy — allows the React dev server (any localhost port) to
+     * call Spring Boot. Restrict origins in production.
      */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
@@ -48,10 +48,7 @@ public class SecurityConfig {
         config.setAllowedOriginPatterns(List.of(
                 "http://localhost:*",
                 "http://127.0.0.1:*",
-                "https://*.vercel.app",
-                "https://*.netlify.app",
-                "https://*.onrender.com",
-                "https://*.railway.app",
+                "https://ai-driven-proposal-generator2.nishit-kekane04.workers.dev",
                 "*"
         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
@@ -70,28 +67,22 @@ public class SecurityConfig {
 
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-
                 .csrf(csrf -> csrf.disable())
-
-                .sessionManagement(session ->
-                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-
+                .sessionManagement(session
+                        -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-
-                        .requestMatchers(
-                                "/auth/register",
-                                "/auth/login",
-                                "/ws/**",
-                                "/ws/workflow",
-                                "/ws/workflow/**",
-                                "/api/workflow/**",
-                                "/api/proposals/**",
-                                "/api/plans/**",
-                                "/api/research/**"
-                        ).permitAll()
-
-                        .anyRequest().authenticated())
-
+                .requestMatchers(
+                        "/auth/register",
+                        "/auth/login",
+                        "/ws/**",
+                        "/ws/workflow",
+                        "/ws/workflow/**",
+                        "/api/workflow/**",
+                        "/api/proposals/**",
+                        "/api/plans/**",
+                        "/api/research/**"
+                ).permitAll()
+                .anyRequest().authenticated())
                 .addFilterBefore(
                         jwtAuthenticationFilter,
                         UsernamePasswordAuthenticationFilter.class

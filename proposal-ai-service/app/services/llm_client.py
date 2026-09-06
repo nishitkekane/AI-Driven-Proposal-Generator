@@ -20,7 +20,11 @@ class LLMClient:
 
     @property
     def base_url(self) -> str:
-        return settings.base_url.rstrip("/")
+        # Strip trailing slashes and normalize endpoint path
+        url = settings.base_url.strip().rstrip("/")
+        if url.endswith("/chat/completions"):
+            url = url[:-len("/chat/completions")]
+        return url
 
     @property
     def model(self) -> str:
@@ -66,14 +70,16 @@ class LLMClient:
             "X-Title": "Smart Proposal Generator",
         }
 
+        endpoint = f"{self.base_url}/chat/completions"
         attempt = 0
         fallback_attempted = False
 
-        while attempt < max_retries:
-            try:
-                async with httpx.AsyncClient(timeout=self.timeout) as client:
+        # Open a single client instance for all retry attempts
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            while attempt < max_retries:
+                try:
                     response = await client.post(
-                        f"{self.base_url}/chat/completions",
+                        endpoint,
                         headers=headers,
                         json=payload,
                     )
@@ -91,31 +97,39 @@ class LLMClient:
 
                     response.raise_for_status()
                     data = response.json()
-                    return data["choices"][0]["message"]["content"]
+                    
+                    try:
+                        return data["choices"][0]["message"]["content"]
+                    except (KeyError, IndexError, TypeError) as ex:
+                        raise LLMResponseError(f"Unexpected API response structure: {data}") from ex
 
-            except httpx.HTTPStatusError as ex:
-                if ex.response.status_code == 429:
-                    continue
-                # If Groq returns 404 (Model Not Found) and we haven't tried the fallback yet:
-                if ex.response.status_code == 404 and not fallback_attempted and payload["model"] != FALLBACK_MODEL:
-                    logger.warning(
-                        "Groq returned 404 for model '%s'. Retrying with fallback model '%s'...",
-                        payload["model"], FALLBACK_MODEL
-                    )
-                    payload["model"] = FALLBACK_MODEL
-                    if FALLBACK_MODEL in _JSON_MODE_MODELS:
-                        payload["response_format"] = {"type": "json_object"}
-                    fallback_attempted = True
+                except httpx.HTTPStatusError as ex:
+                    if ex.response.status_code == 429:
+                        attempt += 1
+                        await asyncio.sleep(2.0 ** attempt)
+                        continue
+
+                    # Fallback on 404 (Model Not Found) if we haven't tried the fallback model yet
+                    if ex.response.status_code == 404 and not fallback_attempted and payload["model"] != FALLBACK_MODEL:
+                        logger.warning(
+                            "Groq returned 404 for model '%s'. Retrying with fallback model '%s'...",
+                            payload["model"], FALLBACK_MODEL
+                        )
+                        payload["model"] = FALLBACK_MODEL
+                        if FALLBACK_MODEL in _JSON_MODE_MODELS:
+                            payload["response_format"] = {"type": "json_object"}
+                        fallback_attempted = True
+                        attempt += 1
+                        await asyncio.sleep(1.0)
+                        continue
+
+                    logger.error("HTTP error from LLM provider: %s — Response: %s", ex, ex.response.text if ex.response else "No body")
+                    raise LLMRequestError(f"HTTP error: {ex}") from ex
+
+                except httpx.HTTPError as ex:
                     attempt += 1
-                    await asyncio.sleep(1.0)
-                    continue
-
-                logger.error("HTTP error from LLM provider: %s — Response: %s", ex, ex.response.text if ex.response else "No body")
-                raise LLMRequestError(f"HTTP error: {ex}") from ex
-            except httpx.HTTPError as ex:
-                attempt += 1
-                delay = 2.0 ** attempt
-                logger.warning("Connection error: %s. Retrying in %.2fs...", ex, delay)
-                await asyncio.sleep(delay)
+                    delay = 2.0 ** attempt
+                    logger.warning("Connection error: %s. Retrying in %.2fs...", ex, delay)
+                    await asyncio.sleep(delay)
 
         raise LLMRequestError(f"Failed to communicate with LLM after {max_retries} retries due to rate limiting or networking issues.")
